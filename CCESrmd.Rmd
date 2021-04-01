@@ -1,0 +1,657 @@
+---
+title: "POLS"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+
+```{r}
+#load dependencies
+library(foreign)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(sjPlot)
+library(stargazer)
+library(DescTools)
+
+```
+```{r}
+#data wrangling
+cces<-read.dta("A://cces2012.dta")
+ccesoriginal<-cces
+cces <- cces %>% filter_at(vars(educ,CC309a,CC309b,CC309c,CC309d,CC310a,CC310b,CC351,
+                               CC310c,CC310d,newsint,CC417a_1,CC417a_2,CC417a_3,CC417a_4,ideo5),all_vars(!is.na(.)))
+#Voter registration valdiated
+cces<-cces[cces$catalist_match=="Yes"&cces$votereg_post=="Yes",]
+#get correct answers to questions
+levels(cces$CC309c)<-c(1,2,3,4,5,6)
+levels(cces$CC309d)<-c(1,2,3,4,5,6)
+levels(cces$CC310a)<-c(0,1,2,3,4,5,6)
+levels(cces$CC310b)<-c(0,1,2,3,4,5,6)
+levels(cces$CC310c)<-c(0,1,2,3,4,5,6)
+ssp<-c(1,3,1,2,2,2,2,2,1,1,2,1,2,1,2,1,1,1,1,2,2,1,1,1,1,1,NA,2,1,2,2,1,1,1,1,1,2,1,2,1,1,1,1,1,2,1,2,2,1,1)
+slp<-c(1,1,1,2,2,1,2,2,1,1,2,1,2,1,1,1,2,1,1,2,2,1,1,1,1,1,NA,2,1,2,2,2,1,1,1,1,3,1,2,1,1,1,1,1,2,1,2,2,1,1)
+governor<-c(1,1,1,2,2,2,2,2,1,1,2,1,2,1,1,1,2,1,1,2,2,1,2,1,2,2,1,1,2,1,1,2,2,1,1,1,2,1,2,1,1,1,1,1,2,1,2,2,1,1)
+sen1<-c(1,2,1,2,2,2,3,2,2,1,2,1,2,1,2,1,1,2,1,2,1,2,2,1,2,2,2,1,2,2,2,2,2,2,2,1,2,2,2,1,2,1,1,1,3,2,2,2,2,1)
+sen2<-c(1,1,1,1,2,2,2,2,1,1,2,1,1,1,1,1,1,1,1,2,2,2,2,1,1,2,1,2,1,2,2,2,1,1,1,1,2,1,2,1,1,1,1,1,2,2,2,2,1,1)
+states<-levels(cces$inputstate)[1:51]
+states<-states[-9]
+gov<-cbind(states,governor)
+gov[39,2]<-3
+sen1<-cbind(states,sen1)
+sen2<-cbind(states,sen2)
+ssp<-cbind(states,ssp)
+slp<-cbind(states,slp)
+levels(cces$CC310d)[4]
+cces$CurrentHouseParty<-as.factor(cces$CurrentHouseParty)
+levels(cces$CurrentHouseParty)<-c("Democrat","Republican",levels(cces$CC310d)[4])
+
+#Construct Race variable
+levels(cces$race)<-c(1,rep(0,9))
+cces$race<-as.numeric(cces$race)
+
+#Construct levels of information
+infolevel<-rep(0,dim(cces)[1])
+for (i in 1:dim(cces)[1]){
+  if (cces$CC309a[i]=="Republicans"){
+    infolevel[i]<-infolevel[i]+1
+  }
+  if (cces$CC309b[i]=="Democrats"){
+    infolevel[i]<-infolevel[i]+1
+  }
+  if (cces$CC309c[i]==ssp[states==cces$inputstate[i],2]){
+    infolevel[i]<-infolevel[i]+1
+  }
+   if (cces$CC309d[i]==slp[states==cces$inputstate[i],2]){
+    infolevel[i]<-infolevel[i]+1
+  }
+   if (cces$CC310a[i]==gov[states==cces$inputstate[i],2]){
+    infolevel[i]<-infolevel[i]+1
+  }
+   if (cces$CC310b[i]==sen1[states==cces$inputstate[i],2]){
+    infolevel[i]<-infolevel[i]+1
+  }
+   if (cces$CC310c[i]==sen2[states==cces$inputstate[i],2]){
+    infolevel[i]<-infolevel[i]+1
+   }
+  if (cces$CC310d[i]==cces$CurrentHouseParty[i]){
+    infolevel[i]<-infolevel[i]+1
+  }
+}
+cces$infolevel<-infolevel
+```
+```{r}
+#construct levels of interest in politics
+newsint<-NA
+for (i in 1:dim(cces)[1]){
+  if (cces$newsint[i]=="Most of the time"){
+    newsint[i]<-4
+  }
+   if (cces$newsint[i]=="Some of the time"){
+    newsint[i]<-3
+  }
+   if (cces$newsint[i]=="Only now and then"){
+    newsint[i]<-2
+   }
+   if (cces$newsint[i]=="Hardly at all"){
+    newsint[i]<-1
+   }
+   if (cces$newsint[i]=="Don't know"){
+    newsint[i]<-1
+   }
+}
+for (i in 1:dim(cces)[1]){
+  if (cces$CC417a_1[i]=="Yes"){
+    newsint[i]<-newsint[i]+1
+  }
+   if (cces$CC417a_2[i]=="Yes"){
+    newsint[i]<-newsint[i]+1
+  }
+   if (cces$CC417a_3[i]=="Yes"){
+    newsint[i]<-newsint[i]+1
+   }
+   if (cces$CC417a_4[i]=="Yes"){
+    newsint[i]<-newsint[i]+1
+   }
+  if (cces$ideo5[i]=="Not sure"){
+    newsint[i]<-newsint[i]-1
+  }
+}
+cces$polint<-newsint
+```
+
+```{r}
+#states that had judicial elections in 2012
+states<-c("Alabama","Alaska","Arizona","Colorado","Florida","Illinois","Indiana","Iowa","Kansas","Kentucky","Maine",  "Maryland","Michigan","Minnesota","Mississippi","Montana","Nebraska","New Mexico","North Carolina","Ohio",           "Oklahoma","Oregon","South Dakota","Texas","Washington","West Virginia")
+#filter voters registered in states
+spv<-cces[cces$inputstate_post%in%states,]  
+#Replace NA value with False for for loop
+MI<-as.vector(spv$CCj413_MI1_97)
+spv$CCj413_MI1_97<-ifelse(is.na(MI),F,MI)
+WV<-as.vector(spv$CCj413_WV_97)
+spv$CCj413_WV_97<-ifelse(is.na(WV),F,WV)
+ccj<-as.vector(spv$CCj413a)
+spv$CCj413a<-ifelse(is.na(ccj),F,ccj)
+ccr<-as.vector(spv$CCj413d)
+spv$CCj413d<-ifelse(is.na(ccr),F,ccr)
+a<-levels(as.factor(spv$CCj413d))[2]
+b<-levels(as.factor(spv$CCj413a))[7]
+#derive and code roll-off (0/1)
+rolloff<-NA
+for (i in 1:dim(spv)[1]){
+  if (spv$CCj413a[i]==b|spv$CCj413d[i]==a|spv$CCj413_MI1_97[i]=="Yes"|spv$CCj413_WV_97[i]=="Yes"){
+    rolloff[i]<-1
+  }
+  else (rolloff[i]<-0)
+}
+spv$rolloff<-rolloff
+```
+
+```{r}
+#Exploratory Visualizations post-wrangling
+ggplot(spv, aes(x=infolevel),) +  
+  geom_histogram(binwidth = 0.5)+
+  scale_x_continuous(breaks = round(seq(min(spv$infolevel), max(spv$infolevel), by = 1),1))+
+  labs(title="Distribution of Levels of Political Information",x="Information Level",y="Count")
+ggplot(spv, aes(x=polint),) +  
+  geom_histogram(binwidth = 0.5)+
+  scale_x_continuous(breaks = round(seq(min(spv$infolevel), max(spv$infolevel), by = 1),1))+
+  labs(title="Distribution of Levels of Interest in Politics",x="Level of Interest in Politics",y="Count")
+ggplot(spv, aes(x=rolloff),) +  
+  geom_histogram(binwidth = 0.5)+
+  scale_x_continuous(breaks = round(seq(min(0), max(1), by = 1),1))+
+  labs(title="Distribution of Ballot Rolloff in 2012 State Supreme Court Election",x="Rolloff (1= Rolled-off)",y="Count")+
+  geom_text(aes(label = round(..prop..,3), y= ..prop..), stat= "count", vjust = -20.2)
+#descriptive statistics
+mean(spv$polint)
+sd(spv$polint)
+mean(spv$infolevel)
+sd(spv$infolevel)
+```
+
+
+```{r mylatextable, results = "asis"}
+#construct additional variables and run the model
+#Length of residence in current state
+levels(spv$CC351)<-c(0,1,2,3,4,5,NA,NA)
+spv$residence<-as.numeric(spv$CC351)
+spv$gender=as.numeric(spv$gender)-1 #code gender
+spv$polint<-1.25*spv$polint #rescale 0-8 to 0-10
+spv$infolevel<-1.25*spv$infolevel #rescale 0-8 to 0-10
+spv$race<-spv$race-1
+#main model
+model1<-glm(rolloff~ infolevel+polint+residence+gender+race, data = spv, family = binomial)
+summary(model1)
+
+#stargazer output
+stargazer(model1, title="Logistic Regression",type="html",dep.var.labels="Rolloff", omit.stat=c("LL","ser","f"), no.space=TRUE)
+plot_model(model1,title="Logistic Regression Model Odds Ratios",axis.labels = c("Race (1=White)","Level of Interest","Years of Local Residence","Gender (1=M)","Level of Information"))
+
+```
+
+
+```{r}
+#Model output visualization
+#store fitted values and observed values
+data=data.frame(fit=model1$fitted.values,polint=na.omit(spv$polint),info=spv$infolevel,rolloff=spv$rolloff,race=spv$race)
+
+
+ggplot(data,aes(x=polint, y=fit,group=polint))+
+  geom_boxplot()+
+  labs(y="Probability of Rolling Off",x="Level of Interest in Politics",title="Probability of Rolling off")
+ggplot(data,aes(x=info, y=fit, group=info))+
+  geom_boxplot()+
+  labs(y="Probability of Rolling Off",x="Level of Political Information",title="Probability of Rolling off")
+ggplot(data,aes(x=race, y=fit, group=race))+
+  geom_boxplot()+
+  labs(y="Probability of Rolling Off",x="Race (1=White/0=Non-white)",title="Probability of Rolling off")
+
+
+#Model validation boxplot
+ggplot(data,aes(x=rolloff, y=fit, group=rolloff))+
+  geom_boxplot()+
+  labs(y="Probability of Rolling Off",x="Observed Voter Roll-off",title="Probability of Rolling off")
+
+```
+
+```{r}
+#simulation (exclude/add x1 to see change)
+y<-c(rep(1,10),rep(0,90))
+x<-c(rnorm(10,1,0.2),rnorm(90,1.1,0.2))
+x1<-c(rnorm(10,1,0.2),rnorm(90,1.7,0.2))
+data<-as.data.frame(cbind(y,x,x1))
+qm<-glm(y~x+x1, family = binomial,data=data)
+summary(qm)
+data=data.frame(fit=qm$fitted.values,y=y)
+
+#fitted vs observed boxplot
+ggplot(data,aes(x=y, y=fit, group=y))+
+  geom_boxplot()+
+  labs(y="Projected Probability of Y=1",x="y")
+```
+Partisan Election Analysis
+```{r}
+table(cces$JudgeCand1PartySelected_post)
+table(cces$JudgeCand2PartySelected_post)
+table(cces$JudgeCand3PartySelected_post)
+table(cces$JudgeCand4PartySelected_post)
+table(cces$JudgeCand1NameSelected_post)
+
+levels(cces$CCj413a)<-c(1,2,3,4,rep(NA,6))
+table(cces$CCj413a)
+table(cces[cces$CCj413a==1,]$JudgeCand1PartySelected_post)
+table(cces[cces$CCj413a==2,]$JudgeCand2PartySelected_post)
+
+names(table(cces$ideo5)[6])
+ideoscale<-as.numeric(1:5)
+as.factor(levels(cces$ideo5)<-c(ideoscale,NA,NA,NA))
+
+partisan<-cces[cces$JudgeCand1PartySelected_post=="(Democratic)"&cces$JudgeCand2PartySelected_post=="(Republican)"&!is.na(cces$ideo5),]
+partisan$party<-ifelse(partisan$CCj413a==2,1,0)
+partisan$vparty<-ifelse(partisan$pid3=="Republican",1,0)
+lm1<-glm(party~vparty*as.numeric(ideo5)+gender+race+inputstate_post, family = binomial,data=partisan)
+summary(lm1)
+```   
+PEA visualization
+
+```{r}
+ggplot(data=partisan,aes(as.numeric(ideo5),party))+
+stat_smooth(method="glm",method.args = list(family = "binomial"),se=F)+
+geom_point()+
+labs(title="Projected Probability of Voting Republican Judge By Voters' Ideology",x="Ideology (Very Liberal-Very Conservative)",y="Probability")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)
+```
+
+Nonpartisan Election Analysis  
+```{r}
+nonpartisan<-spv[spv$JudgeCand1PartySelected_post!="(Democratic)"&spv$JudgeCand2PartySelected_post!="(Republican)"&spv$rolloff==0,]
+
+table(nonpartisan$inputstate_post)
+table(nonpartisan$JudgeCand1NameSelected_post)
+table(nonpartisan$JudgeCand2NameSelected_post)
+table(nonpartisan$JudgeCand3NameSelected_post)
+table(nonpartisan$JudgeCand4NameSelected_post)
+
+```
+Build Partisan Index of Candidates
+```{r}
+table(nonpartisan$CCj413a)
+table(nonpartisan$inputstate_post)
+judgenames<-c(names(table(nonpartisan$JudgeCand1NameSelected_post)),
+names(table(nonpartisan$JudgeCand2NameSelected_post)),
+names(table(nonpartisan$JudgeCand3NameSelected_post)))
+judgenames[judgenames==""]<-NA
+judgenames<-na.omit(judgenames)
+judgedb<-data.frame(judgenames,NA)
+judgedb<-read.csv("A://judgedb.csv")
+```
+Nonpartisan Election Analysis
+```{r}
+nonpartisan$CCj413a<-as.factor(nonpartisan$CCj413a)
+levels(nonpartisan$CCj413a)<-c(1,2,3,NA,NA,NA,NA)
+rjudge<-na.omit(judgedb[judgedb$Party=="R",]$judgenames)
+nonpartisan<-nonpartisan[!is.na(nonpartisan$CCj413a)|nonpartisan$CCj413_MI1_97=="No",]
+#table(nonpartisan[is.na(nonpartisan$CCj413a),]$inputstate_post)
+nonpartisan$CCj413a<-ifelse(is.na(nonpartisan$CCj413a),F,nonpartisan$CCj413a)
+as.factor(levels(nonpartisan$ideo5)<-c(ideoscale,NA,NA,NA))
+vote<-NA
+for (i in 1:dim(nonpartisan)[1]){
+  if (nonpartisan$CCj413a[i]==1){
+    vote[i]<-nonpartisan$JudgeCand1NameSelected_post[i]
+  }
+  if (nonpartisan$CCj413a[i]==2){
+    vote[i]<-nonpartisan$JudgeCand2NameSelected_post[i]
+  }
+  if (nonpartisan$CCj413a[i]==3){
+    vote[i]<-nonpartisan$JudgeCand3NameSelected_post[i]
+  }
+}
+
+nonpartisan$vote<-vote
+
+mi3<-as.vector(nonpartisan$CCj413_MI1_3)
+mi6<-as.vector(nonpartisan$CCj413_MI1_6)
+nonpartisan$CCj413_MI1_3<-ifelse(is.na(mi3),F,mi3)
+nonpartisan$CCj413_MI1_6<-ifelse(is.na(mi6),F,mi6)
+voterep<-NA
+for (i in 1:dim(nonpartisan)[1]){
+  if (nonpartisan$vote[i]%in%rjudge|nonpartisan$CCj413_MI1_3[i]=="Yes"|nonpartisan$CCj413_MI1_6[i]=="Yes"){
+    voterep[i]<-1
+  }
+  else {
+    voterep[i]<-0
+  }
+}
+nonpartisan$voterep<-voterep
+nonpartisan$vparty<-ifelse(nonpartisan$pid3=="Republican",1,0)
+'%!in%' <- function(x,y)!('%in%'(x,y))
+najudges<-judgedb[is.na(judgedb$Party),]$judgenames
+nonpartisan<-nonpartisan[nonpartisan$vote%!in%najudges,]
+nonpartisan$ohio<-nonpartisan$inputstate_post=="Ohio"
+lm2<-glm(voterep~vparty*ohio+as.numeric(ideo5)*ohio+gender+race+inputstate_post, family = binomial,data=nonpartisan)
+summary(lm2)
+VIF(lm2)
+
+lm3<-glm(voterep~gender+race, family = binomial,data=nonpartisan)
+summary(lm3)
+
+lm4<-glm(voterep~vparty*as.numeric(ideo5)+gender+race+inputstate_post, family = binomial,data=nonpartisan)
+summary(lm4)
+VIF(lm4)
+
+
+
+
+
+
+
+```
+
+NPEA visualization
+
+```{r}
+ggplot(data=nonpartisan,aes(as.numeric(ideo5),voterep))+
+stat_smooth(method="glm",method.args = list(family = "binomial"),se=F)+
+geom_point()+
+labs(title="Projected Probability of Voting Republican Judge By Voters' Ideology",x="Ideology (Very Liberal-Very Conservative)",y="Probability")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)
+
+ggplot(NULL)+
+stat_smooth(data=partisan,aes(as.numeric(ideo5),party,col="blue"),method="glm",method.args = list(family = "binomial"),se=F)+
+stat_smooth(data=nonpartisan,aes(as.numeric(ideo5),voterep,col="red"),method="glm",method.args = list(family = "binomial"),se=F)+
+labs(title="Projected Probability of Voting Republican Judge By Voter Ideology",x="Voter's Ideology (Very Liberal-Very Conservative)",y="Probability",colour="Judicial Election Type")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)+
+scale_color_manual(labels = c("Partisan", "Nonpartisan"), values = c("blue", "red"))
+
+
+
+```
+
+
+Extensions
+```{r}
+ccesoriginal$nv<-ccesoriginal$CCj413a_nv
+levels(ccesoriginal$nv)<-c("Candidate 1","Candidate 2","Candidate 3","Candidate 4", "Other","Not Sure",NA,NA)
+barplot(prop.table(table(na.omit(ccesoriginal$nv))),main="Candidate Preference of Voters who Rolled Off (n=1469)",ylab="Proportions")
+
+levels(spv$CCj413a_nv)<-c(0,0,0,0,0,1,NA,NA)
+prop.table(table(na.omit(spv$CCj413a_nv)))
+ns<-glm(CCj413a_nv~polint+infolevel+residence+gender+race, family = binomial,data=spv)
+summary(ns)
+stargazer(ns, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(lm1, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(lm2, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(lm4, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+PseudoR2(ns,"McKelveyZavoina")
+
+PseudoR2(model1,"McKelveyZavoina")
+
+PseudoR2(lm1,"McKelveyZavoina")
+PseudoR2(lm2,"McKelveyZavoina")
+PseudoR2(lm4,"McKelveyZavoina")
+```
+
+```{r}
+nonpartisan$CC410a<-ifelse(is.na(nonpartisan$CC410a),F,nonpartisan$CC410a)
+voteromney<-NA
+ro<-nonpartisan$CC410a[3]
+for (i in 1:dim(nonpartisan)[1]){
+  if (nonpartisan$CC410a[i]==ro){
+    voteromney[i]<-1
+  }
+  else {
+    voteromney[i]<-0
+  }
+}
+nonpartisan$voteromney<-voteromney
+```
+
+```{r}
+ggplot(NULL)+
+stat_smooth(data=nonpartisan,aes(as.numeric(ideo5),voteromney,col="blue"),method="glm",method.args = list(family = "binomial"),se=F)+
+stat_smooth(data=nonpartisan,aes(as.numeric(ideo5),voterep,col="red"),method="glm",method.args = list(family = "binomial"),se=F)+
+labs(title="Probability of Voting Republican Candidate Across Elections",x="Voter's Ideology (Very Liberal-Very Conservative)",y="Probability",colour="Election Type")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)+
+scale_color_manual(labels = c("Presidential", "Nonpartisan State Judicial"), values = c("blue", "red"))
+3498-102
+```
+
+
+Retention Elections
+```{r}
+convertr<-function(x){
+  return(as.numeric(as.character(x)))
+}
+```
+
+
+```{r}
+judgelistog<-read.csv("A://judgelistfinal.csv")
+judgelist<-judgelistog[judgelistog$G!="G",]
+judgelistnames<-judgelist$judgelist
+```
+
+```{r}
+levels(as.factor(spv$CCj413d))[4]
+retain<-spv[spv$CCj413d==levels(as.factor(spv$CCj413d))[4]|spv$CCj413d==levels(as.factor(spv$CCj413d))[5],]
+retain<-retain[retain$pid3=="Democrat"|retain$pid3=="Republican",]
+
+retain$CCj413d<-as.factor(retain$CCj413d)
+levels(retain$CCj413d)<-c(0,1)
+retain$CCj413d<-convertr(retain$CCj413d)
+#build party match index
+retain$vparty<-ifelse(retain$pid3=="Republican",1,0)
+judgep<-NA
+for (i in 1:dim(retain)[1]){
+  judgep[i]<-judgelistog[judgelistog$judgelist==retain$JudgeNameRetentSelected_post[i],]$party
+}
+retain$judgep<-judgep
+pmatch<-NA
+for (i in 1:dim(retain)[1]){
+  pmatch[i]<-ifelse(retain$vparty[i]==retain$judgep[i],1,0)
+}
+retain$pmatch<-pmatch
+judgelistnames<-judgelistnames[-12]
+retain2<-retain[retain$JudgeNameRetentSelected_post%in%judgelistnames,]
+
+judgeideo<-NA
+for (i in 1:dim(retain2)[1]){
+  judgeideo[i]<-judgelist[judgelist$judgelist==retain2$JudgeNameRetentSelected_post[i],]$ideo
+}
+retain2$judgeideo<-judgeideo
+as.factor(levels(retain2$ideo5)<-c(ideoscale,NA,NA,NA))
+retain2$ideo5<-as.numeric(retain2$ideo5)-3
+retain2$a<-retain2$judgeideo-retain2$ideo5
+retain2$b<-(retain2$ideo5)^2+(retain2$judgeideo)^2
+lmr<-glm(CCj413d~1+a+b+ideo5*judgeideo,data=retain2,family = binomial)
+summary(lmr)
+k=-0.689282547277
+#table(retain$inputstate_post)
+retain2$ideodiff<-(retain2$ideo5-(k+retain2$judgeideo))^2
+retain2$CC308c<-as.factor(retain2$CC308c)
+levels(retain2$CC308c)<-c(4,3,2,1,NA,NA,NA)
+retain2$CC308c=convertr(retain2$CC308c)
+
+lmr2<-glm(CCj413d~pmatch+ideodiff+inputstate_post+CC308c,data=retain2,family = binomial)
+summary(lmr2)
+ass<-cbind(retain2$ideo5,retain2$judgeideo,retain2$ideodiff)
+```
+
+Visualization
+```{r}
+ggplot(data=retain2,aes((ideodiff),CCj413d))+
+stat_smooth(method="glm",method.args = list(family = "binomial"),se=F)+
+geom_point()+
+labs(title="Probability of Retaining Judge by Ideological Distance",x="Ideological Distance",y="Probability")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)
+```
+
+
+
+state level analysis
+
+```{r}
+jpref<-read.csv("A://judgedta.csv")
+#Florida
+retainFL<-retain[retain$inputstate_post=="Florida",]
+levels(retainFL$CC308c)<-c(4,3,2,1,NA,NA,NA)
+retainFL$CC308c=convertr(retainFL$CC308c)
+retainFL<-retainFL %>% filter_at(vars(CC332A,CC332G,CC332I),all_vars(!is.na(.)))
+levels(retainFL$CC332A)<-c(-1,1,NA,NA)
+levels(retainFL$CC332G)<-c(-1,1,NA,NA)
+levels(retainFL$CC332I)<-c(1,-1,NA,NA)
+
+obamav<-NA
+retainFL$CC332A=convertr(retainFL$CC332A)
+retainFL$CC332G=convertr(retainFL$CC332G)
+retainFL$CC332I=convertr(retainFL$CC332I)
+
+for (i in 1:dim(retainFL)[1]){
+  obamav[i]<-retainFL$CC332A[i]+retainFL$CC332G[i]+retainFL$CC332I[i]
+}
+retainFL$obamav<-obamav
+judgev<-NA
+for (i in 1:dim(retainFL)[1]){
+  judgev[i]<-jpref[jpref$X==retainFL$JudgeNameRetentSelected_post[i],]$Obamacare
+}
+retainFL$judgev<-judgev
+retainFL$CCj413d<-as.factor(retainFL$CCj413d)
+levels(retainFL$CCj413d)<-c(0,1)
+retainFL$CCj413d<-convertr(retainFL$CCj413d)
+
+retainFL$polcor<-retainFL$obamav*retainFL$judgev
+
+
+
+FL<-glm(CCj413d~pmatch+polcor+CC308c, family = binomial,data=retainFL)
+summary(FL)
+
+```
+
+```{r}
+#Colorado
+retainCO<-retain[retain$inputstate_post=="Colorado",]
+retainCO$gc<-retainCO$CC320
+levels(retainCO$CC320)<-c(1,-1,0,NA,NA)
+levels(retainCO$CC308c)<-c(4,3,2,1,NA,NA,NA)
+retainCO$CC320=convertr(retainCO$CC320)
+retainCO$CC320=ifelse(retainCO$CC320==0,NA,retainCO$CC320)
+retainCO<-retainCO %>% filter_at(vars(CC320,CC308c),all_vars(!is.na(.)))
+
+retainCO$judgevco<-rep(-1,dim(retainCO)[1])
+
+retainCO$polcor<-retainCO$CC320*retainCO$judgevco
+retainCO$CCj413d<-as.factor(retainCO$CCj413d)
+levels(retainCO$CCj413d)<-c(0,1)
+retainCO$CCj413d<-convertr(retainCO$CCj413d)
+
+
+CO<-glm(CCj413d~pmatch+polcor+CC308c, family = binomial,data=retainCO)
+summary(CO)
+
+retainCO$CCj413d[86]
+retainCO$gc[86]
+retainCO$pid3[86]
+
+
+table(retainCO$gc)
+table(retainCO[retainCO$CC320==1,]$CCj413d)
+table(retainCO[retainCO$CC320==-1,]$CCj413d)
+```
+
+```{r}
+#Iowa
+retainIA<-retain[retain$inputstate_post=="Iowa",]
+levels(retainIA$CC308c)<-c(4,3,2,1,NA,NA,NA)
+retainIA$CC308c=convertr(retainIA$CC308c)
+retainIA<-retainIA %>% filter_at(vars(CC326,CC332J),all_vars(!is.na(.)))
+levels(retainIA$CC326)<-c(1,-1,NA,NA)
+levels(retainIA$CC332J)<-c(1,-1,NA,NA)
+gayv<-NA
+retainIA$CC326=convertr(retainIA$CC326)
+retainIA$CC332J=convertr(retainIA$CC332J)
+
+for (i in 1:dim(retainIA)[1]){
+  gayv[i]<-retainIA$CC326[i]+retainIA$CC332J[i]
+}
+retainIA$gayv<-gayv
+
+retainIA$CCj413d<-as.factor(retainIA$CCj413d)
+levels(retainIA$CCj413d)<-c(0,1)
+retainIA$CCj413d<-convertr(retainIA$CCj413d)
+
+IA<-glm(CCj413d~pmatch+gayv+CC308c, family = binomial,data=retainIA)
+summary(IA)
+
+```
+
+```{r}
+#Oklahoma
+retainOK<-retain[retain$inputstate_post=="Oklahoma",]
+levels(retainOK$CC308c)<-c(4,3,2,1,NA,NA,NA)
+retainOK$CC308c=convertr(retainOK$CC308c)
+levels(retainOK$CC324)<-c(1,2,3,4,NA,NA)
+retainOK$CC324=convertr(retainOK$CC324)
+retainOK<-retainOK %>% filter_at(vars(CC324),all_vars(!is.na(.)))
+
+retainOK$CCj413d<-as.factor(retainOK$CCj413d)
+levels(retainOK$CCj413d)<-c(0,1)
+retainOK$CCj413d<-OKnvertr(retainOK$CCj413d)
+
+OK<-glm(CCj413d~pmatch+CC324+CC308c, family = binomial,data=retainOK)
+summary(OK)
+```
+
+Retention Analyis stargazer
+```{r}
+stargazer(FL,CO,IA,OK, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(CO, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(IA, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+stargazer(OK, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+PseudoR2(FL,"McKelveyZavoina")
+PseudoR2(CO,"McKelveyZavoina")
+PseudoR2(IA,"McKelveyZavoina")
+PseudoR2(OK,"McKelveyZavoina")
+PseudoR2(lmr2,"McKelveyZavoina")
+stargazer(lmr2, title="Logistic Regression",type="html",dep.var.labels="Lacking Candidate Preference", omit.stat=c("LL","ser","f"), no.space=TRUE,out="a.htm")
+
+```
+
+```{r}
+ggplot(data=retainFL,aes((polcor),CCj413d))+
+stat_smooth(method="glm",method.args = list(family = "binomial"),se=F)+
+geom_point()+
+labs(title="Probability of Retaining Florida Incumbents",x="Strength of Issue Stances Match/Mismatch",y="Probability")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)
+
+ggplot(data=retainIA,aes((gayv),CCj413d))+
+stat_smooth(method="glm",method.args = list(family = "binomial"),se=F)+
+geom_point()+
+labs(title="Probability of Retaining Iowa Incumbent",x="Strength of Issue Stances Match/Mismatch",y="Probability")+
+theme_bw()+
+theme(panel.grid.minor = element_blank())+
+theme(plot.title = element_text(hjust = 0.5,size=20),axis.text=element_text(size=20),axis.title.y = element_text(size = 20),axis.title.x = element_text(size = 20),legend.text=element_text(size=15),legend.title=element_text(size=15))+
+ylim(0,1)
+```
+
